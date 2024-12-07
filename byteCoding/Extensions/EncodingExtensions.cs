@@ -58,5 +58,33 @@ namespace byteCoding.Extensions
 
             return encodedResult.ToString();
         }
+
+        public static byte[] FromBase32(this string str)
+        {
+            const int numericSystem = 5;
+
+            str = str.TrimEnd(additionalSymbol);
+
+            List<byte> bytes = new List<byte>();
+
+            int buffer = 0;
+            int bitsInBuffer = 0;
+
+            foreach (char stringValue in str)
+            {
+                int index = Base32CodingSpace.IndexOf(stringValue);
+
+                buffer = (buffer << numericSystem) | index;
+                bitsInBuffer += numericSystem;
+
+                while (bitsInBuffer >= 8)
+                {
+                    bitsInBuffer -= 8;
+                    bytes.Add((byte)((buffer >> bitsInBuffer) & 0xFF));
+                }
+            }
+
+            return bytes.ToArray();
+        }
     }
 }
