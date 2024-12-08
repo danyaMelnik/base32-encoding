@@ -4,56 +4,54 @@ namespace byteCoding.Extensions
 {
     public static class EncodingExtensions
     {
-        //private static string Base64CodingSpace = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        private static string Base32CodingSpace = "0123456789abcdefghijklmnopqrstuv";
-        private static char additionalSymbol = '=';
+        private const string Base32CodingSpace = "0123456789abcdefghijklmnopqrstuv";
+        private const char PaddingChar = '=';
+        private const int BitsPerByte = 8;
+        private const int BitsPerBase32Char = 5;
+        private const int Base32BlockSize = 5;
+
         public static string ToShortGuid(this Guid guid)
         {
             return ToBase32(guid.ToByteArray());
         }
 
-        /// <summary>
-        /// Converts bytes to base32 string (5 bit)
-        /// </summary>
-        /// <param name="bytes">input</param>
-        /// <returns>encoded string</returns>
         public static string ToBase32(this byte[] bytes)
         {
-            const int numericSystem = 5;
+            if (bytes == null || bytes.Length == 0)
+                return string.Empty;
 
-            var encodedResult = new StringBuilder((int)Math.Ceiling(bytes.Length * 8.0 / 5.0));
+            var encodedResult = new StringBuilder((int)Math.Ceiling(bytes.Length * BitsPerByte / (double)BitsPerBase32Char));
 
-            for (var i = 0; i < bytes.Length; i += numericSystem)
+            for (var i = 0; i < bytes.Length; i += Base32BlockSize)
             {
-                var byteCount = Math.Min(numericSystem, bytes.Length - i);
+                var byteCount = Math.Min(Base32BlockSize, bytes.Length - i);
                 ulong buffer = 0;
 
                 for (var j = 0; j < byteCount; ++j)
                 {
-                    buffer = (buffer << 8) | bytes[i + j];
+                    buffer = (buffer << BitsPerByte) | bytes[i + j];
                 }
 
-                var bitCount = byteCount * 8;
+                var bitCount = byteCount * BitsPerByte;
+                const byte Base32Mask = 0x1F;
 
                 while (bitCount > 0)
                 {
-                    byte oneByte = 0x1f;
-
-                    var index = bitCount >= numericSystem
-                                        ? (int)(buffer >> (bitCount - numericSystem)) & oneByte
-                                         : (int)(buffer & (ulong)(oneByte >> (numericSystem - bitCount))) << (numericSystem - bitCount);
+                    var index = bitCount >= BitsPerBase32Char
+                        ? (int)(buffer >> (bitCount - BitsPerBase32Char)) & Base32Mask
+                        : (int)(buffer & (ulong)(Base32Mask >> (BitsPerBase32Char - bitCount))) << (BitsPerBase32Char - bitCount);
 
                     encodedResult.Append(Base32CodingSpace[index]);
-                    bitCount -= numericSystem;
+                    bitCount -= BitsPerBase32Char;
                 }
             }
 
-            int remainder = encodedResult.Length % 8;
+            int remainder = encodedResult.Length % BitsPerByte;
 
             if (remainder > 0)
             {
-                int paddingCount = 8 - remainder;
-                encodedResult.Append(additionalSymbol, paddingCount);
+                int paddingCount = BitsPerByte - remainder;
+                encodedResult.Append(PaddingChar, paddingCount);
             }
 
             return encodedResult.ToString();
@@ -61,25 +59,22 @@ namespace byteCoding.Extensions
 
         public static byte[] FromBase32(this string str)
         {
-            const int numericSystem = 5;
+            str = str.TrimEnd(PaddingChar);
 
-            str = str.TrimEnd(additionalSymbol);
-
-            List<byte> bytes = new List<byte>();
-
+            var bytes = new List<byte>();
             int buffer = 0;
             int bitsInBuffer = 0;
 
-            foreach (char stringValue in str)
+            foreach (char charValue in str)
             {
-                int index = Base32CodingSpace.IndexOf(stringValue);
+                int index = Base32CodingSpace.IndexOf(charValue);
 
-                buffer = (buffer << numericSystem) | index;
-                bitsInBuffer += numericSystem;
+                buffer = (buffer << BitsPerBase32Char) | index;
+                bitsInBuffer += BitsPerBase32Char;
 
-                while (bitsInBuffer >= 8)
+                while (bitsInBuffer >= BitsPerByte)
                 {
-                    bitsInBuffer -= 8;
+                    bitsInBuffer -= BitsPerByte;
                     bytes.Add((byte)((buffer >> bitsInBuffer) & 0xFF));
                 }
             }
